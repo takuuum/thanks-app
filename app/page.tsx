@@ -10,7 +10,7 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-lg">T</span>
+              <Heart className="w-5 h-5 text-primary-foreground fill-primary-foreground" />
             </div>
             <span className="text-xl font-semibold">thanks</span>
           </Link>
