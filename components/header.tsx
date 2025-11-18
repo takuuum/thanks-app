@@ -8,7 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Bell, LayoutDashboard, MessageCircleHeart, LogIn, User, MessageSquare } from 'lucide-react';
+import { Bell, LayoutDashboard, MessageCircleHeart, LogIn, MessageSquare } from 'lucide-react';
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from 'next/navigation';
@@ -30,6 +30,7 @@ export function Header({ currentUserId, profile }: HeaderProps) {
   const { permission, showNotification } = useBrowserNotification();
   const [unreadCount, setUnreadCount] = useState(0);
   const [notificationEnabled, setNotificationEnabled] = useState(true);
+  const [lastNotificationId, setLastNotificationId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!currentUserId) return;
@@ -58,62 +59,53 @@ export function Header({ currentUserId, profile }: HeaderProps) {
       setUnreadCount(count || 0);
     };
 
-    fetchUnreadCount();
+    const checkNewNotifications = async () => {
+      if (!notificationEnabled || permission !== 'granted') return;
 
-    // Realtime初期化をtry-catchで保護
-    let channel;
-    try {
-      channel = supabase
-        .channel("notifications")
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "notifications",
-            filter: `user_id=eq.${currentUserId}`,
-          },
-          async (payload) => {
-            fetchUnreadCount();
-            
-            if (payload.eventType === 'INSERT' && notificationEnabled && permission === 'granted') {
-              const notification = payload.new as any;
-              
-              try {
-                const { data: postData } = await supabase
-                  .from("gratitude_posts")
-                  .select("message, points, sender:profiles!gratitude_posts_sender_id_fkey(display_name)")
-                  .eq("id", notification.post_id)
-                  .single();
-                
-                if (postData) {
-                  const senderName = (postData.sender as any)?.display_name || 'Someone';
-                  showNotification(
-                    `Message from ${senderName}`,
-                    {
-                      body: `${postData.points} points: ${postData.message.slice(0, 50)}${postData.message.length > 50 ? '...' : ''}`,
-                      tag: notification.id,
-                      requireInteraction: false,
-                    }
-                  );
-                }
-              } catch (err) {
-                console.error('[Header] Failed to show notification:', err);
-              }
+      const { data } = await supabase
+        .from("notifications")
+        .select("id, post_id")
+        .eq("user_id", currentUserId)
+        .eq("is_read", false)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (data && data.id !== lastNotificationId) {
+        setLastNotificationId(data.id);
+        
+        const { data: postData } = await supabase
+          .from("gratitude_posts")
+          .select("message, points, sender:profiles!gratitude_posts_sender_id_fkey(display_name)")
+          .eq("id", data.post_id)
+          .single();
+        
+        if (postData) {
+          const senderName = (postData.sender as any)?.display_name || 'Someone';
+          showNotification(
+            `Message from ${senderName}`,
+            {
+              body: `${postData.points} points: ${postData.message.slice(0, 50)}${postData.message.length > 50 ? '...' : ''}`,
+              tag: data.id,
+              requireInteraction: false,
             }
-          }
-        )
-        .subscribe();
-    } catch (err) {
-      console.error('[Header] Failed to subscribe to notifications:', err);
-    }
-
-    return () => {
-      if (channel) {
-        supabase.removeChannel(channel);
+          );
+        }
       }
     };
-  }, [currentUserId, supabase, notificationEnabled, permission, showNotification]);
+
+    fetchUnreadCount();
+    checkNewNotifications();
+
+    const interval = setInterval(() => {
+      fetchUnreadCount();
+      checkNewNotifications();
+    }, 30000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [currentUserId, supabase, notificationEnabled, permission, showNotification, lastNotificationId]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
