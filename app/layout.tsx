@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from 'next/font/google';
-import "@/lib/polyfills";
 import "./globals.css";
-import Script from 'next/script';
+import { AuthGuard } from "@/components/auth-guard";
 
 const geistSans = Geist({
   subsets: ["latin"],
@@ -26,51 +25,31 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <head>
-        <Script id="btoa-polyfill" strategy="beforeInteractive">
-          {`
-            (function() {
-              if (typeof window === 'undefined') return;
-              
-              var originalBtoa = window.btoa.bind(window);
-              var originalAtob = window.atob.bind(window);
-              
-              window.btoa = function(str) {
-                try {
-                  return originalBtoa(str);
-                } catch (e) {
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if (typeof window !== 'undefined' && window.btoa) {
+                const _btoa = window.btoa;
+                window.btoa = function(str) {
                   try {
-                    var utf8Bytes = new TextEncoder().encode(str);
-                    var binaryString = Array.from(utf8Bytes, function(byte) {
-                      return String.fromCharCode(byte);
-                    }).join('');
-                    return originalBtoa(binaryString);
-                  } catch (innerError) {
-                    console.error('[v0] btoa encoding failed:', innerError);
-                    throw innerError;
+                    return _btoa.call(this, str);
+                  } catch (e) {
+                    const encoder = new TextEncoder();
+                    const data = encoder.encode(str);
+                    let binary = '';
+                    for (let i = 0; i < data.length; i++) {
+                      binary += String.fromCharCode(data[i]);
+                    }
+                    return _btoa.call(this, binary);
                   }
-                }
-              };
-              
-              window.atob = function(str) {
-                var decoded = originalAtob(str);
-                
-                try {
-                  var bytes = new Uint8Array(decoded.split('').map(function(char) {
-                    return char.charCodeAt(0);
-                  }));
-                  return new TextDecoder().decode(bytes);
-                } catch (e) {
-                  return decoded;
-                }
-              };
-              
-              console.log('[v0] btoa/atob polyfill loaded');
-            })();
-          `}
-        </Script>
+                };
+              }
+            `,
+          }}
+        />
       </head>
       <body className={`${geistSans.className} antialiased`}>
-        {children}
+        <AuthGuard>{children}</AuthGuard>
       </body>
     </html>
   );
