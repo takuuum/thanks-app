@@ -1,21 +1,24 @@
 import { createBrowserClient } from "@supabase/ssr";
 
 if (typeof window !== 'undefined') {
-  const originalBtoa = window.btoa;
-  const originalAtob = window.atob;
+  const originalBtoa = window.btoa.bind(window);
+  const originalAtob = window.atob.bind(window);
   
   window.btoa = function(str: string): string {
-    // Latin1範囲外の文字を検出（0-255の範囲外）
-    const hasNonLatin1 = /[^\x00-\xFF]/.test(str);
-    
-    if (hasNonLatin1) {
-      // UTF-8エンコードしてからBase64化
-      const utf8Bytes = new TextEncoder().encode(str);
-      const binaryString = Array.from(utf8Bytes, byte => String.fromCharCode(byte)).join('');
-      return originalBtoa(binaryString);
+    try {
+      // まず元のbtoaを試す
+      return originalBtoa(str);
+    } catch (e) {
+      // Latin1範囲外の文字がある場合、UTF-8エンコードしてから再試行
+      try {
+        const utf8Bytes = new TextEncoder().encode(str);
+        const binaryString = Array.from(utf8Bytes, byte => String.fromCharCode(byte)).join('');
+        return originalBtoa(binaryString);
+      } catch (innerError) {
+        console.error('[v0] btoa encoding failed:', innerError, 'for string:', str);
+        throw innerError;
+      }
     }
-    
-    return originalBtoa(str);
   };
   
   window.atob = function(str: string): string {
@@ -30,6 +33,8 @@ if (typeof window !== 'undefined') {
       return decoded;
     }
   };
+  
+  console.log('[v0] btoa/atob polyfill applied');
 }
 
 export function createClient() {

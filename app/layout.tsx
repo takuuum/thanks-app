@@ -31,21 +31,24 @@ export default function RootLayout({
             (function() {
               if (typeof window === 'undefined') return;
               
-              var originalBtoa = window.btoa;
-              var originalAtob = window.atob;
+              var originalBtoa = window.btoa.bind(window);
+              var originalAtob = window.atob.bind(window);
               
               window.btoa = function(str) {
-                var hasNonLatin1 = /[^\\x00-\\xFF]/.test(str);
-                
-                if (hasNonLatin1) {
-                  var utf8Bytes = new TextEncoder().encode(str);
-                  var binaryString = Array.from(utf8Bytes, function(byte) {
-                    return String.fromCharCode(byte);
-                  }).join('');
-                  return originalBtoa(binaryString);
+                try {
+                  return originalBtoa(str);
+                } catch (e) {
+                  try {
+                    var utf8Bytes = new TextEncoder().encode(str);
+                    var binaryString = Array.from(utf8Bytes, function(byte) {
+                      return String.fromCharCode(byte);
+                    }).join('');
+                    return originalBtoa(binaryString);
+                  } catch (innerError) {
+                    console.error('[v0] btoa encoding failed:', innerError);
+                    throw innerError;
+                  }
                 }
-                
-                return originalBtoa(str);
               };
               
               window.atob = function(str) {
@@ -60,6 +63,8 @@ export default function RootLayout({
                   return decoded;
                 }
               };
+              
+              console.log('[v0] btoa/atob polyfill loaded');
             })();
           `}
         </Script>
