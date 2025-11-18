@@ -40,54 +40,61 @@ export function NotificationsList({
   const supabase = createClient();
 
   useEffect(() => {
-    // Request notification permission on component mount
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
 
-    // Subscribe to new notifications
-    const channel = supabase
-      .channel("new_notifications")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${userId}`,
-        },
-        async (payload) => {
-          // Show browser notification
-          if (
-            "Notification" in window &&
-            Notification.permission === "granted"
-          ) {
-            // Fetch the post details
-            const { data: post } = await supabase
-              .from("posts")
-              .select(
-                "message, points, sender:sender_id(display_name)"
-              )
-              .eq("id", (payload.new as any).post_id)
-              .single();
+    // Realtime初期化をtry-catchで保護し、日本語メッセージを英語に変更
+    let channel;
+    try {
+      channel = supabase
+        .channel("new_notifications")
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${userId}`,
+          },
+          async (payload) => {
+            if (
+              "Notification" in window &&
+              Notification.permission === "granted"
+            ) {
+              try {
+                const { data: post } = await supabase
+                  .from("posts")
+                  .select(
+                    "message, points, sender:sender_id(display_name)"
+                  )
+                  .eq("id", (payload.new as any).post_id)
+                  .single();
 
-            if (post) {
-              new Notification("新しい感謝が届きました", {
-                body: `${(post.sender as any).display_name}さんから${post.points}ポイント`,
-                icon: "/icon.png",
-                tag: (payload.new as any).id,
-              });
+                if (post) {
+                  new Notification("New thanks received", {
+                    body: `${(post.sender as any).display_name}: ${post.points} points`,
+                    icon: "/icon.png",
+                    tag: (payload.new as any).id,
+                  });
+                }
+              } catch (err) {
+                console.error('[NotificationsList] Failed to show notification:', err);
+              }
             }
-          }
 
-          // Refresh the page to show new notification
-          router.refresh();
-        }
-      )
-      .subscribe();
+            router.refresh();
+          }
+        )
+        .subscribe();
+    } catch (err) {
+      console.error('[NotificationsList] Failed to subscribe to notifications:', err);
+    }
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, [userId, supabase, router]);
 

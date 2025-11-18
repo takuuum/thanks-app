@@ -60,46 +60,58 @@ export function Header({ currentUserId, profile }: HeaderProps) {
 
     fetchUnreadCount();
 
-    const channel = supabase
-      .channel("notifications")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${currentUserId}`,
-        },
-        async (payload) => {
-          fetchUnreadCount();
-          
-          if (payload.eventType === 'INSERT' && notificationEnabled && permission === 'granted') {
-            const notification = payload.new as any;
+    // Realtime初期化をtry-catchで保護
+    let channel;
+    try {
+      channel = supabase
+        .channel("notifications")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${currentUserId}`,
+          },
+          async (payload) => {
+            fetchUnreadCount();
             
-            const { data: postData } = await supabase
-              .from("gratitude_posts")
-              .select("message, points, sender:profiles!gratitude_posts_sender_id_fkey(display_name)")
-              .eq("id", notification.post_id)
-              .single();
-            
-            if (postData) {
-              const senderName = (postData.sender as any)?.display_name || '誰か';
-              showNotification(
-                `${senderName}から感謝のメッセージが届きました`,
-                {
-                  body: `${postData.points}ポイント: ${postData.message.slice(0, 50)}${postData.message.length > 50 ? '...' : ''}`,
-                  tag: notification.id,
-                  requireInteraction: false,
+            if (payload.eventType === 'INSERT' && notificationEnabled && permission === 'granted') {
+              const notification = payload.new as any;
+              
+              try {
+                const { data: postData } = await supabase
+                  .from("gratitude_posts")
+                  .select("message, points, sender:profiles!gratitude_posts_sender_id_fkey(display_name)")
+                  .eq("id", notification.post_id)
+                  .single();
+                
+                if (postData) {
+                  const senderName = (postData.sender as any)?.display_name || 'Someone';
+                  showNotification(
+                    `Message from ${senderName}`,
+                    {
+                      body: `${postData.points} points: ${postData.message.slice(0, 50)}${postData.message.length > 50 ? '...' : ''}`,
+                      tag: notification.id,
+                      requireInteraction: false,
+                    }
+                  );
                 }
-              );
+              } catch (err) {
+                console.error('[Header] Failed to show notification:', err);
+              }
             }
           }
-        }
-      )
-      .subscribe();
+        )
+        .subscribe();
+    } catch (err) {
+      console.error('[Header] Failed to subscribe to notifications:', err);
+    }
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, [currentUserId, supabase, notificationEnabled, permission, showNotification]);
 

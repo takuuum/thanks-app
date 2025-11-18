@@ -1,52 +1,57 @@
-// UTF-8対応btoaポリフィル
+// UTF-8対応btoaポリフィル - 最優先実行
 (function() {
-  if (typeof window === 'undefined' || !window.btoa) return;
+  if (typeof window === 'undefined') return;
   
-  var _btoa = window.btoa;
-  var _atob = window.atob;
+  // オリジナルのbtoa/atobを保存
+  var originalBtoa = window.btoa;
+  var originalAtob = window.atob;
   
-  // グローバルbtoaを完全に置き換え
-  window.btoa = function(input) {
-    if (!input) return _btoa.call(this, input);
-    
-    // Latin1範囲チェック（0x00-0xFF）
-    var hasNonLatin1 = false;
-    for (var i = 0; i < input.length; i++) {
-      if (input.charCodeAt(i) > 255) {
-        hasNonLatin1 = true;
-        break;
+  // グローバルbtoaをUTF-8対応版に置き換え
+  window.btoa = function(str) {
+    try {
+      // まずオリジナルのbtoaを試す
+      return originalBtoa(str);
+    } catch (e) {
+      // エラーが発生した場合（非Latin1文字を含む場合）、UTF-8エンコード処理
+      try {
+        // TextEncoderでUTF-8バイト列に変換
+        var encoder = new TextEncoder();
+        var uint8array = encoder.encode(str);
+        
+        // バイト列を文字列に変換
+        var binaryStr = '';
+        for (var i = 0; i < uint8array.length; i++) {
+          binaryStr += String.fromCharCode(uint8array[i]);
+        }
+        
+        // 変換した文字列をBase64エンコード
+        return originalBtoa(binaryStr);
+      } catch (err) {
+        console.error('[btoa-polyfill] Encoding failed:', err);
+        throw err;
       }
     }
-    
-    // Latin1範囲内ならネイティブbtoaを使用
-    if (!hasNonLatin1) {
-      return _btoa.call(this, input);
-    }
-    
-    // UTF-8エンコード
-    var encoder = new TextEncoder();
-    var utf8Bytes = encoder.encode(input);
-    var binaryString = '';
-    for (var i = 0; i < utf8Bytes.length; i++) {
-      binaryString += String.fromCharCode(utf8Bytes[i]);
-    }
-    return _btoa.call(this, binaryString);
   };
   
-  window.atob = function(input) {
-    var binaryString = _atob.call(this, input);
-    var bytes = new Uint8Array(binaryString.length);
-    for (var i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
+  // atobもUTF-8対応版に置き換え
+  window.atob = function(str) {
+    var binaryStr = originalAtob(str);
     
     try {
+      // バイト列に変換
+      var bytes = new Uint8Array(binaryStr.length);
+      for (var i = 0; i < binaryStr.length; i++) {
+        bytes[i] = binaryStr.charCodeAt(i);
+      }
+      
+      // UTF-8デコード
       var decoder = new TextDecoder('utf-8', { fatal: true });
       return decoder.decode(bytes);
     } catch (e) {
-      return binaryString;
+      // UTF-8デコードに失敗した場合は元の文字列を返す
+      return binaryStr;
     }
   };
   
-  console.log('[btoa-polyfill] UTF-8 support enabled');
+  console.log('[btoa-polyfill] UTF-8 btoa/atob polyfill loaded');
 })();
