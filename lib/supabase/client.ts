@@ -1,26 +1,33 @@
 import { createBrowserClient } from "@supabase/ssr";
 
-// UTF-8対応btoaポリフィルを確実に適用
-if (typeof window !== 'undefined' && window.btoa) {
-  const originalBtoa = window.btoa.bind(window);
-  const originalAtob = window.atob.bind(window);
+if (typeof window !== 'undefined') {
+  const originalBtoa = window.btoa;
+  const originalAtob = window.atob;
   
   window.btoa = function(str: string): string {
-    try {
-      return originalBtoa(str);
-    } catch (e) {
-      console.log('[v0] btoa fallback for non-Latin1 string:', str.substring(0, 50));
-      const utf8Str = unescape(encodeURIComponent(str));
-      return originalBtoa(utf8Str);
+    // Latin1範囲外の文字を検出（0-255の範囲外）
+    const hasNonLatin1 = /[^\x00-\xFF]/.test(str);
+    
+    if (hasNonLatin1) {
+      // UTF-8エンコードしてからBase64化
+      const utf8Bytes = new TextEncoder().encode(str);
+      const binaryString = Array.from(utf8Bytes, byte => String.fromCharCode(byte)).join('');
+      return originalBtoa(binaryString);
     }
+    
+    return originalBtoa(str);
   };
   
   window.atob = function(str: string): string {
+    const decoded = originalAtob(str);
+    
     try {
-      const decoded = originalAtob(str);
-      return decodeURIComponent(escape(decoded));
+      // UTF-8デコードを試みる
+      const bytes = new Uint8Array(decoded.split('').map(char => char.charCodeAt(0)));
+      return new TextDecoder().decode(bytes);
     } catch (e) {
-      return originalAtob(str);
+      // デコードに失敗したら元の文字列を返す
+      return decoded;
     }
   };
 }

@@ -30,22 +30,34 @@ export default function RootLayout({
           {`
             (function() {
               if (typeof window === 'undefined') return;
+              
               var originalBtoa = window.btoa;
               var originalAtob = window.atob;
+              
               window.btoa = function(str) {
-                try {
-                  return originalBtoa(str);
-                } catch (e) {
-                  var utf8Str = unescape(encodeURIComponent(str));
-                  return originalBtoa(utf8Str);
+                var hasNonLatin1 = /[^\\x00-\\xFF]/.test(str);
+                
+                if (hasNonLatin1) {
+                  var utf8Bytes = new TextEncoder().encode(str);
+                  var binaryString = Array.from(utf8Bytes, function(byte) {
+                    return String.fromCharCode(byte);
+                  }).join('');
+                  return originalBtoa(binaryString);
                 }
+                
+                return originalBtoa(str);
               };
+              
               window.atob = function(str) {
+                var decoded = originalAtob(str);
+                
                 try {
-                  var decoded = originalAtob(str);
-                  return decodeURIComponent(escape(decoded));
+                  var bytes = new Uint8Array(decoded.split('').map(function(char) {
+                    return char.charCodeAt(0);
+                  }));
+                  return new TextDecoder().decode(bytes);
                 } catch (e) {
-                  return originalAtob(str);
+                  return decoded;
                 }
               };
             })();
