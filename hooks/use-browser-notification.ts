@@ -43,7 +43,7 @@ export function useBrowserNotification() {
     }
   };
 
-  const hasPermission = permission === 'granted';
+  const hasPermission = () => permission === 'granted';
 
   return {
     permission,
