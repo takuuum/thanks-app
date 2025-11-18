@@ -21,14 +21,17 @@ export function NotificationToggle({ userId, initialEnabled = true }: Notificati
   const [showPermissionWarning, setShowPermissionWarning] = useState(false);
   const supabase = createClient();
   const { toast } = useToast();
-  const { requestPermission, hasPermission } = useBrowserNotification();
+  const { requestPermission, hasPermission, permission } = useBrowserNotification();
 
   useEffect(() => {
     setEnabled(initialEnabled);
-    if (initialEnabled && !hasPermission()) {
+    // 通知がオンで、かつブラウザ許可が明示的に拒否されている場合のみ警告を表示
+    if (initialEnabled && permission === 'denied') {
       setShowPermissionWarning(true);
+    } else if (permission === 'granted') {
+      setShowPermissionWarning(false);
     }
-  }, [initialEnabled]);
+  }, [initialEnabled, permission]);
 
   const handleToggle = async (checked: boolean) => {
     if (!userId) {
