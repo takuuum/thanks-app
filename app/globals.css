@@ -1,0 +1,79 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@theme {
+  --font-sans: 'Geist', 'Geist Fallback';
+  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  
+  /* #006555（ティールグリーン）と#f7f2ea（ベージュ）を16進数で直接指定 */
+  --color-background: #f7f2ea;
+  --color-foreground: #006555;
+  
+  --color-card: #ffffff;
+  --color-card-foreground: #006555;
+  
+  --color-popover: #ffffff;
+  --color-popover-foreground: #006555;
+  
+  --color-primary: #006555;
+  --color-primary-foreground: #ffffff;
+  
+  --color-secondary: #f2ede3;
+  --color-secondary-foreground: #006555;
+  
+  --color-muted: #ede8de;
+  --color-muted-foreground: #4c7f75;
+  
+  --color-accent: #4c7f75;
+  --color-accent-foreground: #ffffff;
+  
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
+  
+  --color-border: #e6e1d7;
+  --color-input: #e6e1d7;
+  --color-ring: #006555;
+  
+  --radius: 0.5rem;
+}
+
+/* ダークモード用に:is(.dark *)を使用してカラーをオーバーライド */
+:is(.dark *) {
+  --color-background: #004438;
+  --color-foreground: #f7f2ea;
+  
+  --color-card: #005446;
+  --color-card-foreground: #f7f2ea;
+  
+  --color-popover: #005446;
+  --color-popover-foreground: #f7f2ea;
+  
+  --color-primary: #4c7f75;
+  --color-primary-foreground: #004438;
+  
+  --color-secondary: #005446;
+  --color-secondary-foreground: #f7f2ea;
+  
+  --color-muted: #005446;
+  --color-muted-foreground: #cbd9d5;
+  
+  --color-accent: #98b2ad;
+  --color-accent-foreground: #004438;
+  
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
+  
+  --color-border: #005446;
+  --color-input: #005446;
+  --color-ring: #4c7f75;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+  }
+}
